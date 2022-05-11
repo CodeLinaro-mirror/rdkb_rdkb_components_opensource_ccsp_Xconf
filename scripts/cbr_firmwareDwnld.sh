@@ -25,6 +25,16 @@ source /lib/rdk/getaccountid.sh
 source /lib/rdk/t2Shared_api.sh
 source /etc/waninfo.sh
 
+if [ -f /lib/rdk/stateRedRecoveryUtils.sh ]
+then
+    source /lib/rdk/stateRedRecoveryUtils.sh
+fi
+
+if [ -f /lib/rdk/mtlsUtils.sh ]
+then
+   source /lib/rdk/mtlsUtils.sh
+fi
+
 if [ -f /etc/device.properties ]
 then
     source /etc/device.properties
@@ -284,6 +294,12 @@ IsCodebigBlocked()
             ret=0
         fi
     fi
+    isInStateRed
+    redflagset=$?
+    if [ $redflagset -eq 1 ]; then
+        codebigret=1
+        stateRedlog "XCONF SCRIPT : stateRedRecovery - disabling code-big"
+    fi
     return $ret
 }
 
@@ -353,6 +369,13 @@ useDirectRequest()
             curr_conn_type="direct"
             echo_t "Trying Direct Communication"
             echo_t "Trying Direct Communication" >> $XCONF_LOG_FILE
+            
+	    isInStateRed
+            stateRed=$?
+            if [ "0x$stateRed" == "0x1" ]; then
+                stateRedlog "XCONF SCRIPT : stateRedRecovery - attempting MTLS connection to XCONF server"
+                CERT="$(getStateRedCreds)"
+            fi
             CURL_CMD="$CURL_PATH/curl $CERT --interface $interface $addr_type -w '%{http_code}\n' --tlsv1.2 -d \"$JSONSTR\" -o \"$FWDL_JSON\" \"$xconf_url\" $CERT_STATUS --connect-timeout 30 -m 30"
             HTTP_CODE=`result= eval $CURL_CMD`
             ret=$?
@@ -369,6 +392,9 @@ useDirectRequest()
                 ;;
             esac
             [ "x$HTTP_RESPONSE_CODE" != "x" ] || HTTP_RESPONSE_CODE=0
+            if [ "0xret" != "0x0" ]; then
+                checkAndEnterStateRed $ret
+            fi
 }
 
 # Codebig connection Download function
@@ -403,6 +429,9 @@ useCodebigRequest()
                 t2ValNotify "swdlCBCurlFail_split" "$ret"
                 ;;
             esac
+            if [ "0xret" != "0x0" ]; then
+                checkAndEnterStateRed $ret
+            fi
 }
 
 # Check if a new image is available on the XCONF server
@@ -429,7 +458,24 @@ getFirmwareUpgDetail()
     else
         xconf_url=`cut -d "=" -f2 /tmp/Xconf`
     fi
-    
+
+    #High Priority State Red recovery RDKB-37008
+    #If in state red other use cases are ignored
+    isInStateRed
+    redflagset=$?
+    if [ $redflagset -eq 1 ]; then
+        if [ -f $PERSISTENT_PATH/stateredrecovry.conf ] && [ $type != "prod" ] ; then
+            urlString=`grep -v '^[[:space:]]*#' $PERSISTENT_PATH/stateredrecovry.conf`
+            if [ $? -ne 0 ]; then
+                urlString="$(getStateRedXconfUrl)"
+            fi
+            xconf_url=$urlString
+        else
+            xconf_url="$(getStateRedXconfUrl)"
+        fi
+        stateRedlog "XCONF SCRIPT : stateRedRecovery - attempting MTLS connection to $xconf_url"
+    fi
+
     # if xconf_url uses http, then log it
     case $(echo "$xconf_url" | cut -d ":" -f1 | tr '[:upper:]' '[:lower:]') in
         "https")
@@ -508,6 +554,14 @@ getFirmwareUpgDetail()
         instBundles=$(getInstalledBundleList)
 
         JSONSTR='eStbMac='${MAC}'&firmwareVersion='${currentVersion}'&env='${env}'&model='${modelName}'&partnerId='${partnerId}'&activationInProgress='${activationInProgress}'&accountId='${accountId}'&localtime='${date}'&dlCertBundle='${instBundles}'&timezone=EST05&capabilities=rebootDecoupled&capabilities=RCDL&capabilities=supportsFullHttpUrl'
+
+        #Parsing JSONSTR with recovery flag
+        isInStateRed
+        stateRed=$?
+        if [ "0x$stateRed" == "0x1" ]; then
+            JSONSTR=$JSONSTR'&recovery="true"'
+        fi
+
         if [ "$UseCodebig" = "1" ]; then
            useCodebigRequest
         else
@@ -696,6 +750,10 @@ getFirmwareUpgDetail()
             image_upg_avl=0
             echo_t "XCONF SCRIPT : Response code received is 404" >> $XCONF_LOG_FILE
                 
+            if [ "$triggeredFrom" = "stateRedRecovery" ];then
+                unsetStateRed
+                exit
+            fi
             if [ "$isPeriodicFWCheckEnabled" == "true" ]; then
                 exit
             fi
@@ -731,6 +789,10 @@ getFirmwareUpgDetail()
             touch $FORCE_DIRECT_ONCE
         fi
         echo_t "XCONF SCRIPT : Retry limit to connect with XCONF server reached, so exit" 
+        if [ "$triggeredFrom" = "stateRedRecovery" ];then
+            unsetStateRed
+            exit
+        fi
         if [ "$isPeriodicFWCheckEnabled" == "true" ]; then
 	   exit
 	fi
@@ -1066,6 +1128,10 @@ elif [[ $1 -eq 5 ]]
 then
    echo_t "XCONF SCRIPT : Trigger from delayDownload Timer" >> $XCONF_LOG_FILE
    triggeredFrom="delayedDownload"
+elif [[ $1 -eq 6 ]]
+then
+   echo_t "XCONF SCRIPT : Trigger from State Red Recovery" >> $XCONF_LOG_FILE
+   triggeredFrom="stateRedRecovery"
 else
    echo_t "XCONF SCRIPT : Trigger is Unknown. Set it to boot" >> $XCONF_LOG_FILE
    triggeredFrom="boot"
@@ -1264,6 +1330,12 @@ do
               XconfHttpDl set_http_url "$firmwareLocation" "$firmwareFilename"
               set_url_stat=$?
 	  fi
+          if [ "$triggeredFrom" = "stateRedRecovery" ];then
+             stateRedlog "XCONF SCRIPT : stateRedRecovery - setting mtls state red credentials"
+             cert="$(getStateRedCreds)"
+             $BIN_PATH/XconfHttpDl set_http_url " $cert $firmwareLocation/$firmwareFilename " "$firmwareFilename" complete_url
+             set_url_stat=$?
+          fi
        else
           # Set the url and filename
           echo_t "XCONF SCRIPT : URL --- `echo "$CURL_SSR_PARAM"| sed -e  's/oauth_consumer_key=.*oauth_signature=.*/<hidden>/g'` and NAME --- $firmwareFilename"
@@ -1327,10 +1399,18 @@ do
                 # Indicate succesful download
                 download_image_success=1
                 rm -rf $DOWNLOAD_INPROGRESS
+                if [ "$triggeredFrom" = "stateRedRecovery" ];then
+                    stateRedlog "XCONF SCRIPT : stateRedRecovery - firmware download success"
+                    unsetStateRed
+                fi
             else
                 # Indicate an unsuccesful download
                 echo_t "XCONF SCRIPT : HTTP download NOT Successful" >> $XCONF_LOG_FILE
 		t2CountNotify "XCONF_Dwld_failed"
+                if [ "$triggeredFrom" = "stateRedRecovery" ];then
+                    stateRedlog "XCONF SCRIPT : stateRedRecovery - firmware download failed"
+                    unsetStateRed
+                fi
                 rm -rf $DOWNLOAD_INPROGRESS
                 download_image_success=0
                 # Set the flag to 0 to force a requery

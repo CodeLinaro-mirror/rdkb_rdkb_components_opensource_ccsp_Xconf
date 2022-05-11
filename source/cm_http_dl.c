@@ -136,6 +136,90 @@ INT Set_HTTP_Download_Url(char *pHttpUrl, char *pfilename) {
         return ret_stat;
 }
 
+int filePresentCheck(const char *file_name)
+{
+        int ret = -1 ;
+        if (file_name == NULL) {
+                printf("filePresentCheck() Invalid Parameter\n");
+                return ret;
+        }
+        struct stat sfile;
+        memset(&sfile, '\0', sizeof(sfile));
+        ret = stat(file_name, &sfile);
+        printf("filePresentCheck() name:%s:ret:%d\n", file_name, ret);
+        return ret;
+}
+
+
+int isStateRedSupported()
+{
+        int ret = -1;
+        ret = filePresentCheck("/lib/rdk/stateRedRecovery.sh");
+        if (ret == 0) {
+                printf("isStateRedSupported(): Yes file present:%s\n","/lib/rdk/stateRedRecovery.sh");
+                return 1;
+        }
+        printf("isStateRedSupported(): No Not prsent:%s\n", "/lib/rdk/stateRedRecovery.sh");
+        return 0;
+}
+
+
+int isInStateRed()
+{
+        int ret = -1;
+        int stateRed = 0;
+        ret = isStateRedSupported();
+        if (ret == 0) {
+                printf("isInStateRed(): No ret:%d\n", stateRed);
+                return stateRed;
+        }
+        ret = filePresentCheck("/tmp/stateRedEnabled");
+        if (ret == 0) {
+                printf("isInStateRed(): Yes Flag prsent:%s\n", "/tmp/stateRedEnabled");
+                stateRed = 1;
+        }
+        printf("isInStateRed(): No Not prsent:%s\n", "/tmp/stateRedEnabled");
+        return stateRed;
+}
+
+void checkAndEnterStateRed()
+{
+    int ret = -1;
+    FILE *fp = NULL;
+	char res[16];
+	int curlret = 0;
+    ret = isStateRedSupported();
+    if (ret == 0) {
+        return;
+    }
+    ret = isInStateRed();
+    if (ret == 1) {
+        printf("RED checkAndEnterStateRed: device state red recovery flag already set\n");
+        return;
+    }
+
+    fp = fopen("/tmp/xconf/dload_status", "r");
+    if(NULL != fp)
+    {
+        memset(res, 0, sizeof(res));
+        fgets(res, sizeof(res)-1, fp);
+        fclose(fp);
+        curlret = atoi(res);
+	if ((curlret == 35) || (curlret == 51) || (curlret == 53) || (curlret == 54) || (curlret == 58) || (curlret == 59) || (curlret == 60) || (curlret == 64) || (curlret == 66) || (curlret == 77) || (curlret == 80) || (curlret == 82) || (curlret == 83) || (curlret == 90) || (curlret == 91)) {
+            printf("Curl SSL/TLS error %d. Set State Red Recovery Flag and Exit!!!",curlret);
+            fp = fopen("/tmp/stateRedEnabled","w");
+            if (fp != NULL) {
+                fclose(fp);
+            }
+            exit(1);
+        }
+    }
+	else
+    {
+        printf("curl_status : file open error!");
+    }
+}
+
 INT HTTP_Download ()
 {   
     int ret_stat;
@@ -281,6 +365,8 @@ INT HTTP_Download ()
 
                 retry_http_dl=1;
                 retry_limit++;
+                //check and enter state red if curl code matches. if already in state red do nothing.
+                checkAndEnterStateRed();
                 sleep(10);
             }
 
@@ -302,6 +388,8 @@ INT HTTP_Download ()
             }
 #endif
 	    printf("\nXCONF BIN : HTTP DOWNLOAD ERROR with status : %d. Exiting.",http_dl_status);
+            //check and enter state red if curl code matches. if already in state red do nothing.
+            checkAndEnterStateRed();
 	    if(http_dl_status == 500)
 	    {
 		    //"header": "SYS_INFO_FW_Dwld_500Error", "content": "HTTP download ERROR with status : 500", "type": "ArmConsolelog.txt.0"
