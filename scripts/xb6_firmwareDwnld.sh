@@ -91,22 +91,45 @@ CONN_TRIES=3
 EnableOCSPStapling="/tmp/.EnableOCSPStapling"
 EnableOCSP="/tmp/.EnableOCSPCA"
 
+#Check CodeBig before using direct_CDN
+CodeBigEnable=`dmcli eRT getv Device.DeviceInfo.X_RDKCENTRAL-COM_RFC.Feature.CodeBigFirst.Enable | grep value | cut -f3 -d : | cut -f2 -d " "`
+
 #Default xconf url
+direct_CDN="$(dmcli eRT getv Device.DeviceInfo.X_RDKCENTRAL-COM_RFC.Feature.SWDLDirect.Enable | grep bool | cut -d":" -f3- | cut -d" " -f2- | tr -d ' ')"
 dml_URL="$(dmcli eRT getv Device.DeviceInfo.X_RDKCENTRAL-COM_Syndication.XconfURL | grep string | cut -d":" -f3- | cut -d" " -f2- | tr -d ' ')"
+
 if [ "$dml_URL" != "" ];then
-    if [ "$PARTNER_ID" = "sky-uk" ]
-    then
-        xconf_url="${dml_URL}/xconf/swu/sky"
+    if [ "$direct_CDN" = "true" ] && [ "x$CodeBigEnable" != "xtrue" ];then
+        if [ "$PARTNER_ID" = "sky-uk" ]
+        then
+            xconf_url="${dml_URL}/xconf/swu/sky"
+        else
+            xconf_url="${dml_URL}/xconf/firmware/stb/"
+        fi
     else
-        xconf_url="${dml_URL}/xconf/swu/stb/"
+	if [ "$PARTNER_ID" = "sky-uk" ]
+        then
+            xconf_url="${dml_URL}/xconf/swu/sky"
+        else
+            xconf_url="${dml_URL}/xconf/swu/stb/"
+        fi
     fi
 else
     echo_t "XCONF SCRIPT : default xconf_url not found via TR181" >> $XCONF_LOG_FILE
-    if [ "$PARTNER_ID" = "sky-uk" ]
-    then
-        xconf_url="https://xconf.xdp.eu-1.xcal.tv/xconf/swu/sky"
+    if [ "$direct_CDN" = "true" ] && [ "x$CodeBigEnable" != "xtrue" ];then
+        if [ "$PARTNER_ID" = "sky-uk" ]
+        then
+            xconf_url="https://xconf.xdp.eu-1.xcal.tv/xconf/swu/sky"
+        else
+            xconf_url="https://xconf.xcal.tv/xconf/firmware/stb/"
+        fi
     else
-        xconf_url="https://xconf.xcal.tv/xconf/swu/stb/"
+	if [ "$PARTNER_ID" = "sky-uk" ]
+        then
+            xconf_url="https://xconf.xdp.eu-1.xcal.tv/xconf/swu/sky"
+        else
+            xconf_url="https://xconf.xcal.tv/xconf/swu/stb/"
+        fi
     fi
 fi
 
@@ -494,6 +517,7 @@ getFirmwareUpgDetail()
 	firmwareDownloadProtocol=""
 	firmwareFilename=""
 	firmwareLocation=""
+	firmware_URL=""
 	firmwareVersion=""
 	rebootImmediately=""
         ipv6FirmwareLocation=""
@@ -607,7 +631,8 @@ getFirmwareUpgDetail()
                 continue
             fi
 
-    	    firmwareFilename=`grep firmwareFilename $OUTPUT | cut -d \| -f2`
+	    firmware_URL=`grep firmware_URL  $OUTPUT | cut -d \| -f2 | tr -d ' '`
+	    firmwareFilename=`grep firmwareFilename $OUTPUT | cut -d \| -f2`
     	    firmwareVersion=`grep firmwareVersion $OUTPUT | cut -d \| -f2`
 	    ipv6FirmwareLocation=`grep ipv6FirmwareLocation  $OUTPUT | cut -d \| -f2 | tr -d ' '`
 	    upgradeDelay=`grep upgradeDelay $OUTPUT | cut -d \| -f2`
@@ -619,13 +644,18 @@ getFirmwareUpgDetail()
             echo_t "XCONF SCRIPT : Protocol :"$firmwareDownloadProtocol
     	    echo_t "XCONF SCRIPT : Filename :"$firmwareFilename
     	    echo_t "XCONF SCRIPT : Location :"$firmwareLocation
+	    echo_t "XCONF SCRIPT : Firmware URL :"$firmware_URL
     	    echo_t "XCONF SCRIPT : Version  :"$firmwareVersion
     	    echo_t "XCONF SCRIPT : Reboot   :"$rebootImmediately
     	    echo_t "XCONF SCRIPT : Delay Time :"$delayDownload
             echo_t "XCONF SCRIPT : factoryResetImmediately :"$factoryResetImmediately
             echo_t "XCONF SCRIPT : dlCertBundle :"$dlCertBundle
             
-            dmcli eRT setv Device.DeviceInfo.X_RDKCENTRAL-COM_FirmwareDownloadURL string "$firmwareLocation"
+            if [ "$direct_CDN" = "true" ];then
+	        dmcli eRT setv Device.DeviceInfo.X_RDKCENTRAL-COM_FirmwareDownloadURL string "$firmware_URL"
+            else
+		dmcli eRT setv Device.DeviceInfo.X_RDKCENTRAL-COM_FirmwareDownloadURL string "$firmwareLocation"
+	    fi
             #RDKB-35095 AC#3
             if [ "$firmwareFilename" = "" ];then
                 dmcli eRT setv Device.DeviceInfo.X_RDKCENTRAL-COM_FirmwareToDownload string "$currentVersion"
@@ -643,7 +673,7 @@ getFirmwareUpgDetail()
                 echo_t "XCONF SCRIPT : Resetting the download delay to 0 minutes" >> $XCONF_LOG_FILE
             fi
 	
-            if [ "X"$firmwareLocation = "X" ];then
+	    if [ "X"$firmwareLocation = "X" ] && [ "X"$firmware_URL = "X" ];then
                 echo_t "XCONF SCRIPT : No URL received in $FWDL_JSON" >> $XCONF_LOG_FILE
                 retry_flag=1
                 image_upg_avl=0
@@ -806,9 +836,10 @@ fetchFirmwareDetail()
 
     firmwareDownloadProtocol=`grep firmwareDownloadProtocol $LAST_HTTP_RESPONSE  | cut -d \| -f2`
     firmwareLocation=`grep firmwareLocation $LAST_HTTP_RESPONSE | cut -d \| -f2 | tr -d ' '`
+    firmware_URL=`grep firmware_URL $LAST_HTTP_RESPONSE | cut -d \| -f2 | tr -d ' '`
     firmwareFilename=`grep firmwareFilename $LAST_HTTP_RESPONSE | cut -d \| -f2`
 
-    if [ -z "$firmwareLocation" ] || [ -z "$firmwareFilename" ]; then
+    if [ [ -z "$firmwareLocation" ] && [ -z "$firmware_URL" ] ] || [ -z "$firmwareFilename" ]; then
         echo_t "XCONF SCRIPT : Fetch firmware upgrade details from Xconf" >> $XCONF_LOG_FILE
         return
     fi
@@ -1124,6 +1155,7 @@ url="$xconf_url"
 if [ "$type" != "PROD" ] && [ "$type" != "prod" ]; then
     if [ -f /nvram/swupdate.conf ]; then
         url=`grep -v '^[[:space:]]*#' /nvram/swupdate.conf`
+        xconf_url=$url
         echo "XCONF SCRIPT : URL taken from /nvram/swupdate.conf override. URL=$url"
         echo "XCONF SCRIPT : URL taken from /nvram/swupdate.conf override. URL=$url"  >> $XCONF_LOG_FILE
         CDL_SERVER_OVERRIDE=1
@@ -1132,6 +1164,8 @@ if [ "$type" != "PROD" ] && [ "$type" != "prod" ]; then
         url_override=`syscfg get AutoExcludedURL`
         if [ "$url_override" ] ; then
            url=$url_override
+           xconf_url=$url
+           CDL_SERVER_OVERRIDE=1
         fi
     fi
 else
@@ -1207,10 +1241,18 @@ fi
 Retry_Reboot_count=0
 if [ "$factoryResetImmediately" == "true" ];then
     echo_t "XCONF SCRIPT : factoryResetImmediately : TRUE!!" >> $XCONF_LOG_FILE
-    echo_t "XCONF SCRIPT : firmwareLocation: $firmwareLocation firmwareFilename : $firmwareFilename" >> $XCONF_LOG_FILE
     while [ $Retry_Reboot_count -lt 3 ]; do
-        XconfHttpDl upgrade_factoryreset "$firmwareLocation" "$firmwareFilename" >> $XCONF_LOG_FILE
-        reboot_device=$?
+        if [ "$direct_CDN" = "true" ] && [ $CDL_SERVER_OVERRIDE != 1 ] && [ "x$CodeBigEnable" != "xtrue" ];then
+            echo_t "XCONF SCRIPT : firmware_URL: $firmware_URL firmwareFilename : $firmwareFilename" >> $XCONF_LOG_FILE
+            echo_t "XCONF SCRIPT : CDL: firmwareDownloadServer: cdn_direct" >> $XCONF_LOG_FILE
+            XconfHttpDl upgrade_factoryreset "$firmware_URL" "$firmwareFilename" >> $XCONF_LOG_FILE
+            reboot_device=$?
+        else
+            echo_t "XCONF SCRIPT : firmwareLocation: $firmwareLocation firmwareFilename : $firmwareFilename" >> $XCONF_LOG_FILE
+            echo_t "XCONF SCRIPT : CDL: firmwareDownloadServer: ssr_indirect"
+            XconfHttpDl upgrade_factoryreset "$firmwareLocation" "$firmwareFilename" >> $XCONF_LOG_FILE
+            reboot_device=$?
+        fi
         if [ $reboot_device -eq 0 ];then
     	    echo_t "XCONF SCRIPT : factory resetting and upgrading the image" >> $XCONF_LOG_FILE
             break
@@ -1296,24 +1338,39 @@ do
         echo "$firmwareLocation" > /tmp/xconfdownloadurl
         #/etc/whitelist.sh "$firmwareLocation"
 
-        echo_t "XCONF SCRIPT : HTTP SSR set for $curr_conn_type download"
-        echo_t "XCONF SCRIPT : HTTP SSR set for $curr_conn_type download" >> $XCONF_LOG_FILE
+        if [ "$direct_CDN" = "true" ];then
+            echo_t "XCONF SCRIPT : HTTP CDN_Direct set for $curr_conn_type download"
+            echo_t "XCONF SCRIPT : HTTP CDN_Direct set for $curr_conn_type download" >> $XCONF_LOG_FILE
+            echo_t "CDL: firmwareDownloadServer: cdn_direct"
+            echo_t "CDL: firmwareDownloadServer: cdn_direct" >> $XCONF_LOG_FILE
+        else
+            echo_t "XCONF SCRIPT : HTTP SSR set for $curr_conn_type download"
+            echo_t "XCONF SCRIPT : HTTP SSR set for $curr_conn_type download" >> $XCONF_LOG_FILE
+            echo_t "CDL: firmwareDownloadServer: ssr_indirect"
+            echo_t "CDL: firmwareDownloadServer: ssr_indirect" >> $XCONF_LOG_FILE
+        fi
 
         if [ "$curr_conn_type" = "direct" ]; then
           # Set the url and filename
-          echo_t "XCONF SCRIPT : URL --- --tlsv1.2 -fgL $firmwareLocation and NAME --- $firmwareFilename"
-          echo_t "XCONF SCRIPT : URL --- --tlsv1.2 -fgL $firmwareLocation and NAME --- $firmwareFilename" >> $XCONF_LOG_FILE
           if ([ "$BOX_TYPE" = "SR300" ] || [ "$BOX_TYPE" = "SR213" ]) && [ "$PARTNER_ID" = "sky-uk" ] && [ "$CERT" != "" ] && [[ "$firmwareLocation" == *"ssr.xdp.eu-1.xcal.tv"* ]]; then
-            #Use the MTLS certificates only for EU xconf "ssr.xdp.eu-1.xcal.tv"
-            XconfHttpDl set_http_url "$firmwareLocation" "$firmwareFilename" "$CERT"
-            set_url_stat=$?
-            echo_t "XCONF SCRIPT : URL with certificate --- --tlsv1.2 -fgL $firmwareLocation and NAME --- $firmwareFilename"
-            echo_t "XCONF SCRIPT : URL with certificate --- --tlsv1.2 -fgL $firmwareLocation and NAME --- $firmwareFilename" >> $XCONF_LOG_FILE
-          
+              #Use the MTLS certificates only for EU xconf "ssr.xdp.eu-1.xcal.tv"
+              XconfHttpDl set_http_url "$firmwareLocation" "$firmwareFilename" "$CERT"
+              set_url_stat=$?
+              echo_t "XCONF SCRIPT : URL with certificate --- --tlsv1.2 -fgL $firmwareLocation and NAME --- $firmwareFilename"
+              echo_t "XCONF SCRIPT : URL with certificate --- --tlsv1.2 -fgL $firmwareLocation and NAME --- $firmwareFilename" >> $XCONF_LOG_FILE
+	  elif [ "$direct_CDN" = "true" ] && [ $CDL_SERVER_OVERRIDE != 1 ];then
+              echo_t "XCONF SCRIPT : URL --- --tlsv1.2 -fgL $firmware_URL and NAME --- $firmwareFilename"
+              echo_t "XCONF SCRIPT : URL --- --tlsv1.2 -fgL $firmware_URL and NAME --- $firmwareFilename" >> $XCONF_LOG_FILE
+
+              XconfHttpDl set_http_url "$firmware_URL" "$firmwareFilename"
+              set_url_stat=$?
           else
-            XconfHttpDl set_http_url "$firmwareLocation" "$firmwareFilename"
-            set_url_stat=$?
-          fi
+              echo_t "XCONF SCRIPT : URL --- --tlsv1.2 -fgL $firmwareLocation and NAME --- $firmwareFilename"
+              echo_t "XCONF SCRIPT : URL --- --tlsv1.2 -fgL $firmwareLocation and NAME --- $firmwareFilename" >> $XCONF_LOG_FILE
+
+              XconfHttpDl set_http_url "$firmwareLocation" "$firmwareFilename"
+              set_url_stat=$?
+	  fi
         else
           # Set the url and filename
           echo_t "XCONF SCRIPT : URL --- `echo "$CURL_SSR_PARAM"| sed -e  's/oauth_consumer_key=.*oauth_signature=.*/<hidden>/g'` and NAME --- $firmwareFilename"

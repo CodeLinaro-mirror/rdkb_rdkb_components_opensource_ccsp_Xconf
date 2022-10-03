@@ -21,7 +21,7 @@
 #include <string.h>
 
 #include <telemetry_busmessage_sender.h>
-
+#include <syscfg/syscfg.h>
 
 #include "cm_hal.h"
 #include "safec_lib_common.h"
@@ -99,7 +99,6 @@ static int get_argument_type_from_argv(char *name, enum ArgumentType_Xconf_e *ty
 
 /*Global Definitions*/
 int retry_limit = 0;
-
 
 INT Set_HTTP_Download_Url(char *pHttpUrl, char *pfilename) {
         int ret_stat = 0;
@@ -392,6 +391,7 @@ int main(int argc,char *argv[])
     errno_t rc = -1;
     int ind = -1;
     enum ArgumentType_Xconf_e   type;
+    char buf[8]={'\0'};
 #if defined (_COSA_BCM_ARM_)
     int dl_status = 0;
 #endif
@@ -440,9 +440,19 @@ int main(int argc,char *argv[])
                       // TBD - Evaluate impact on all other platforms which doesn't have changes in oem HAL api
                       // Form complete download URL from args passed by caller including the quotes
                       // "'" + pHttpUrl + "/" + "pfilename" + "'"
-                      rc = sprintf_s(pHttpUrl, sizeof(pHttpUrl), "'%s/%s'", argv[2], pfilename);
-                      if(rc < EOK ) {
-                         ERR_CHK(rc);
+
+                      syscfg_get(NULL, "SWDLDirectEnable", buf, sizeof(buf));
+                      if (strcmp(buf, "true") == 0) {
+                        rc = sprintf_s(pHttpUrl, sizeof(pHttpUrl), "'%s'", argv[2]);
+                        if(rc < EOK ) {
+                          ERR_CHK(rc);
+                        }
+                      }
+                      else {
+                        rc = sprintf_s(pHttpUrl, sizeof(pHttpUrl), "'%s/%s'", argv[2], pfilename);
+                        if(rc < EOK ) {
+                          ERR_CHK(rc);
+                        }
                       }
                       ret_code = Set_HTTP_Download_Url(pHttpUrl, pfilename);
                   }
