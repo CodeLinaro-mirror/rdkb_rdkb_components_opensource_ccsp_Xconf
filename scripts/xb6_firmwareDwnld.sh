@@ -296,8 +296,12 @@ IsCodebigBlocked()
             ret=0
         fi
     fi
-    isInStateRed
-    redflagset=$?
+    if [ -f /lib/rdk/stateRedRecoveryUtils.sh ];then
+        isInStateRed
+        redflagset=$?
+    else
+	redflagset=0
+    fi
     if [ $redflagset -eq 1 ]; then
         codebigret=1
         stateRedlog "XCONF SCRIPT : stateRedRecovery - disabling code-big"
@@ -367,8 +371,12 @@ useDirectRequest()
             curr_conn_type="direct"
             echo_t "Trying Direct Communication"
             echo_t "Trying Direct Communication" >> $XCONF_LOG_FILE
-            isInStateRed
-            stateRed=$?
+            if [ -f /lib/rdk/stateRedRecoveryUtils.sh ];then
+                isInStateRed
+                stateRed=$?
+            else
+                stateRed=0
+            fi
             if [ "0x$stateRed" == "0x1" ]; then
                 stateRedlog "XCONF SCRIPT : stateRedRecovery - attempting MTLS connection to XCONF server"
                 CERT="$(getStateRedCreds)"
@@ -389,7 +397,7 @@ useDirectRequest()
                 ;;
             esac
             [ "x$HTTP_RESPONSE_CODE" != "x" ] || HTTP_RESPONSE_CODE=0
-            if [ "0xret" != "0x0" ]; then
+            if [ "0xret" != "0x0" ] && [ -f /lib/rdk/stateRedRecoveryUtils.sh ]; then
                 checkAndEnterStateRed $ret
             fi
 }
@@ -425,7 +433,7 @@ useCodebigRequest()
                 t2ValNotify "swdlCBCurlFail_split" "$ret" 
                 ;;
             esac
-            if [ "0xret" != "0x0" ]; then
+            if [ "0xret" != "0x0" ] && [ -f /lib/rdk/stateRedRecoveryUtils.sh ]; then
                 checkAndEnterStateRed $ret
             fi
 }
@@ -496,8 +504,12 @@ getFirmwareUpgDetail()
 
     #High Priority State Red recovery RDKB-37008
     #If in state red other use cases are ignored
-    isInStateRed
-    redflagset=$?
+    if [ -f /lib/rdk/stateRedRecoveryUtils.sh ];then
+        isInStateRed
+        redflagset=$?
+    else
+	redflagset=0
+    fi
     if [ $redflagset -eq 1 ]; then
         if [ -f $PERSISTENT_PATH/stateredrecovry.conf ] && [ $type != "prod" ] ; then
             urlString=`grep -v '^[[:space:]]*#' $PERSISTENT_PATH/stateredrecovry.conf`
@@ -616,8 +628,12 @@ getFirmwareUpgDetail()
         JSONSTR='eStbMac='${MAC}'&firmwareVersion='${currentVersion}'&env='${env}'&model='${devicemodel}'&partnerId='${partnerId}'&activationInProgress='${activationInProgress}'&accountId='${accountId}'&localtime='${date}'&dlCertBundle='${instBundles}'&timezone=EST05&capabilities=rebootDecoupled&capabilities=RCDL&capabilities=supportsFullHttpUrl'
 
         #Parsing JSONSTR with recovery flag
-        isInStateRed
-        stateRed=$?
+        if [ -f /lib/rdk/stateRedRecoveryUtils.sh ];then
+            isInStateRed
+            stateRed=$?
+        else
+            stateRed=0
+        fi
         if [ "0x$stateRed" == "0x1" ]; then
             JSONSTR=$JSONSTR'&recovery="true"'
         fi
