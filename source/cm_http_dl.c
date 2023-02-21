@@ -25,6 +25,8 @@
 
 #include "cm_hal.h"
 #include "safec_lib_common.h"
+#include <sys/stat.h>
+#include "secure_wrapper.h"
 
 #if defined(_ENABLE_EPON_SUPPORT_)
 #include "dpoe_hal.h"
@@ -389,6 +391,9 @@ INT HTTP_Download ()
 #endif
 	    printf("\nXCONF BIN : HTTP DOWNLOAD ERROR with status : %d. Exiting.",http_dl_status);
             //check and enter state red if curl code matches. if already in state red do nothing.
+	    #if defined (INTEL_PUMA7)
+                v_secure_system("/usr/bin/getArmCurlCode.sh");
+            #endif
             checkAndEnterStateRed();
 	    if(http_dl_status == 500)
 	    {
