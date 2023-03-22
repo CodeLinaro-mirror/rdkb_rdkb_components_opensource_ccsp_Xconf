@@ -667,6 +667,10 @@ getFirmwareUpgDetail()
 
 	    firmwareDownloadProtocol=`grep firmwareDownloadProtocol $OUTPUT  | cut -d \| -f2`
 
+            if ([ "$BOX_TYPE" = "HUB4" ] || [ "$BOX_TYPE" = "SR213" ]) && [ "$firmwareDownloadProtocol" != "" ];then
+                dmcli eRT setv Device.DeviceInfo.X_RDKCENTRAL-COM_FirmwareDownloadProtocol string "$firmwareDownloadProtocol"
+            fi
+
 	    if [ "$firmwareDownloadProtocol" == "http" ];then
 		echo_t "XCONF SCRIPT : Download image from HTTP server" 
                 firmwareLocation=`grep firmwareLocation $OUTPUT | cut -d \| -f2 | tr -d ' '`
