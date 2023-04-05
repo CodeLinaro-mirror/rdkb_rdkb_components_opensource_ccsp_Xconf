@@ -139,10 +139,10 @@ then
       echo_t "XCONF: getMtlsCreds failed for sky-uk. Exiting" >> $XCONF_LOG_FILE
       exit
    else
-      echo_t "XCONF : getMtlsCreds returned $CERT" >> $XCONF_LOG_FILE
+      echo_t "XCONF : getMtlsCreds returned success" >> $XCONF_LOG_FILE
    fi
 else
-   echo_t "XCONF : getMtlsCreds returned $CERT" >> $XCONF_LOG_FILE
+   echo_t "XCONF : getMtlsCreds returned" >> $XCONF_LOG_FILE
 fi
 
 CONN_RETRIES=3
