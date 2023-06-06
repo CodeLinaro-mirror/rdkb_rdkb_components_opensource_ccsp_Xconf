@@ -465,6 +465,7 @@ getFirmwareUpgDetail()
     redflagset=$?
     if [ $redflagset -eq 1 ]; then
         if [ -f $PERSISTENT_PATH/stateredrecovry.conf ] && [ $type != "prod" ] ; then
+            CDL_SERVER_OVERRIDE=1
             urlString=`grep -v '^[[:space:]]*#' $PERSISTENT_PATH/stateredrecovry.conf`
             if [ $? -ne 0 ]; then
                 urlString="$(getStateRedXconfUrl)"
@@ -1329,12 +1330,19 @@ do
 
               XconfHttpDl set_http_url "$firmwareLocation" "$firmwareFilename"
               set_url_stat=$?
-	  fi
+          fi
           if [ "$triggeredFrom" = "stateRedRecovery" ];then
              stateRedlog "XCONF SCRIPT : stateRedRecovery - setting mtls state red credentials"
-             cert="$(getStateRedCreds)"
-             $BIN_PATH/XconfHttpDl set_http_url " $cert $firmwareLocation/$firmwareFilename " "$firmwareFilename" complete_url
-             set_url_stat=$?
+             if [ "$direct_CDN" = "true" ] && [ $CDL_SERVER_OVERRIDE != 1 ] && [ "x$CodeBigEnable" != "xtrue" ];then
+                 echo_t "XCONF SCRIPT stateRedRecovery : $firmware_URL/$firmwareFilename" >> $XCONF_LOG_FILE
+                 echo_t "XCONF SCRIPT stateRedRecovery : $firmwareFilename " >> $XCONF_LOG_FILE
+                 XconfHttpDl set_http_url "$firmware_URL" "$firmwareFilename"
+                 set_url_stat=$?
+             else
+                 cert="$(getStateRedCreds)"
+                 $BIN_PATH/XconfHttpDl set_http_url " $cert $firmwareLocation/$firmwareFilename " "$firmwareFilename" complete_url
+                 set_url_stat=$?
+             fi
           fi
        else
           # Set the url and filename

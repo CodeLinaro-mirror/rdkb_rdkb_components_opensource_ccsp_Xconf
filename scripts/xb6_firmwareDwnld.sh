@@ -512,6 +512,7 @@ getFirmwareUpgDetail()
     fi
     if [ $redflagset -eq 1 ]; then
         if [ -f $PERSISTENT_PATH/stateredrecovry.conf ] && [ $type != "prod" ] ; then
+            CDL_SERVER_OVERRIDE=1
             urlString=`grep -v '^[[:space:]]*#' $PERSISTENT_PATH/stateredrecovry.conf`
             if [ $? -ne 0 ]; then
                 urlString="$(getStateRedXconfUrl)"
@@ -1449,11 +1450,18 @@ do
                       exit 127
                   fi
               fi
-              echo_t "XCONF SCRIPT stateRedRecovery : $cert" >> $XCONF_LOG_FILE
-              echo_t "XCONF SCRIPT stateRedRecovery : $firmwareLocation/$firmwareFilename" >> $XCONF_LOG_FILE
-              echo_t "XCONF SCRIPT stateRedRecovery : $firmwareFilename " >> $XCONF_LOG_FILE
-              XconfHttpDl set_http_url " $cert $firmwareLocation/$firmwareFilename " "$firmwareFilename" complete_url
-              set_url_stat=$?
+              if [ "$direct_CDN" = "true" ] && [ $CDL_SERVER_OVERRIDE != 1 ] && [ "x$CodeBigEnable" != "xtrue" ];then
+                  echo_t "XCONF SCRIPT stateRedRecovery : $firmware_URL/$firmwareFilename" >> $XCONF_LOG_FILE
+                  echo_t "XCONF SCRIPT stateRedRecovery : $firmwareFilename " >> $XCONF_LOG_FILE
+                  XconfHttpDl set_http_url "$firmware_URL" "$firmwareFilename"
+                  set_url_stat=$?
+              else
+                  echo_t "XCONF SCRIPT stateRedRecovery : $cert" >> $XCONF_LOG_FILE
+                  echo_t "XCONF SCRIPT stateRedRecovery : $firmwareLocation/$firmwareFilename" >> $XCONF_LOG_FILE
+                  echo_t "XCONF SCRIPT stateRedRecovery : $firmwareFilename " >> $XCONF_LOG_FILE
+                  XconfHttpDl set_http_url " $cert $firmwareLocation/$firmwareFilename " "$firmwareFilename" complete_url
+                  set_url_stat=$?
+              fi
           elif ([ "$BOX_TYPE" = "SR300" ] || [ "$BOX_TYPE" = "SR213" ]) && [ "$PARTNER_ID" = "sky-uk" ] && [ "$CERT" != "" ] && [[ "$firmwareLocation" == *"ssr.xdp.eu-1.xcal.tv"* ]]; then
               #Use the MTLS certificates only for EU xconf "ssr.xdp.eu-1.xcal.tv"
               XconfHttpDl set_http_url "$firmwareLocation" "$firmwareFilename" "$CERT"
