@@ -51,11 +51,9 @@ XCONF_LOG_FILE=${XCONF_LOG_FILE_PATHNAME}
 
 CERT=""
 
-if [ -f /lib/rdk/mtlsUtils.sh ]
+if [ -f /lib/rdk/exec_curl_mtls.sh ]
 then
-   source /lib/rdk/mtlsUtils.sh 
-   echo_t "XCONF: calling getMtlsCreds"
-   CERT="`getMtlsCreds ${BOX_TYPE}_firmwareDwnld.sh`"
+   source /lib/rdk/exec_curl_mtls.sh
 fi
 
 PARTNER_ID="$(getPartnerId)"
@@ -134,15 +132,6 @@ fi
 if [ "$PARTNER_ID" = "sky-uk" ]
 then
    echo_t "XCONF: Check MTLS only for partner sky-uk" >> $XCONF_LOG_FILE
-   if [ "$CERT" = "" ]
-   then
-      echo_t "XCONF: getMtlsCreds failed for sky-uk. Exiting" >> $XCONF_LOG_FILE
-      exit
-   else
-      echo_t "XCONF : getMtlsCreds returned success" >> $XCONF_LOG_FILE
-   fi
-else
-   echo_t "XCONF : getMtlsCreds returned" >> $XCONF_LOG_FILE
 fi
 
 CONN_RETRIES=3
@@ -369,20 +358,21 @@ useDirectRequest()
             curr_conn_type="direct"
             echo_t "Trying Direct Communication"
             echo_t "Trying Direct Communication" >> $XCONF_LOG_FILE
-            
+            CURL_ARGS="--interface $interface $addr_type -w '%{http_code}\n' --tlsv1.2 -d \"$JSONSTR\" -o \"$FWDL_JSON\" \"$xconf_url\" $CERT_STATUS --connect-timeout 30 -m 30"
 	    isInStateRed
             stateRed=$?
             if [ "0x$stateRed" == "0x1" ]; then
                 stateRedlog "XCONF SCRIPT : stateRedRecovery - attempting MTLS connection to XCONF server"
                 CERT="$(getStateRedCreds)"
+                CURL_CMD="$CURL_PATH/curl $CERT $CURL_ARGS"
+                result=` eval $CURL_CMD > $HTTP_CODE`
+                ret=$?
+                echo_t "CURL_CMD:$CURL_CMD"
+                echo_t "CURL_CMD:$CURL_CMD" >> $XCONF_LOG_FILE
+            else
+                ret=` exec_curl_mtls "$CURL_ARGS"`
             fi
-            CURL_CMD="$CURL_PATH/curl $CERT --interface $interface $addr_type -w '%{http_code}\n' --tlsv1.2 -d \"$JSONSTR\" -o \"$FWDL_JSON\" \"$xconf_url\" $CERT_STATUS --connect-timeout 30 -m 30"
-            HTTP_CODE=`result= eval $CURL_CMD`
-            ret=$?
-	    CURL_CMD=`echo "$CURL_CMD" | sed 's/devicecert_1.* -d/devicecert_1.pk12<hidden key>/' | sed 's/staticXpkiCr.* -d/staticXpkiCrt.pk12<hidden key>/'`
-            echo_t "CURL_CMD:$CURL_CMD"
-            echo_t "CURL_CMD:$CURL_CMD" >> $XCONF_LOG_FILE
-            HTTP_RESPONSE_CODE=$(echo "$HTTP_CODE" | awk -F\" '{print $1}' )
+            HTTP_RESPONSE_CODE=$(awk '{print $1}' $HTTP_CODE )
             echo_t "Direct Communication - ret:$ret, http_code:$HTTP_RESPONSE_CODE" | tee -a $XCONF_LOG_FILE ${LOG_PATH}/TlsVerify.txt
             # log security failure
             case $ret in
