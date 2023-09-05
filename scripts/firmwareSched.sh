@@ -88,6 +88,14 @@ updateCron()
 #                          Main App                          #
 #                                                            #
 ##############################################################
+
+#Kill previous process to avoid multiple instances of script execution
+
+if [ ! -f $REBOOT_WAIT ]
+then
+    killall $SCRIPT_NAME
+fi
+
 # Check if the crontab entry needs to be removed or not
 if [ "$1" == "RemoveCronJob" ]
 then
@@ -128,10 +136,6 @@ then
      fi
      
    done
-fi
-if [ ! -f $REBOOT_WAIT ]
-then
-    killall $SCRIPT_NAME
 fi
 
 	      cronPattern=""
