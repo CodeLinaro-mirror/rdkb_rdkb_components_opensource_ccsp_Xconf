@@ -57,6 +57,13 @@ fi
 
 PARTNER_ID="$(getPartnerId)"
 
+if [ -f /lib/rdk/mtlsUtils.sh ] && [ "$PARTNER_ID" = "sky-uk" ]
+then
+   source /lib/rdk/mtlsUtils.sh
+   echo_t "XCONF: calling getMtlsCreds"
+   CERT="`getMtlsCreds ${BOX_TYPE}_firmwareDwnld.sh`"
+fi
+
 source /lib/rdk/t2Shared_api.sh
 source /etc/waninfo.sh
 
