@@ -1443,6 +1443,10 @@ do
                 # Indicate succesful download
                 download_image_success=1
                 rm -rf $DOWNLOAD_INPROGRESS
+
+                #Trigger FirmwareDownloadCompletedNotification after firmware download
+                dmcli eRT setv Device.DeviceInfo.X_RDKCENTRAL-COM_xOpsDeviceMgmt.RPC.FirmwareDownloadCompletedNotification bool true
+	        echo_t "FirmwareDownloadCompletedNotification SET to true is triggered" >> $XCONF_LOG_FILE
             else
                 # Indicate an unsuccesful download
                 echo_t "XCONF SCRIPT : HTTP download NOT Successful" >> $XCONF_LOG_FILE
@@ -1451,23 +1455,16 @@ do
                 download_image_success=0
                 # Set the flag to 0 to force a requery
                 image_upg_avl=0
+
+                #Trigger FirmwareDownloadCompletedNotification after firmware download
+                dmcli eRT setv Device.DeviceInfo.X_RDKCENTRAL-COM_xOpsDeviceMgmt.RPC.FirmwareDownloadCompletedNotification bool false
+		echo_t "FirmwareDownloadCompletedNotification SET to false is triggered" >> $XCONF_LOG_FILE
+                
                 if [ "$isPeriodicFWCheckEnabled" == "true" ]; then
 			# No need of looping here as we will trigger a cron job at random time
 			exit
 		fi
             fi
-
-		#Trigger FirmwareDownloadCompletedNotification after firmware download
-
-		# true indicates successful download and false indicates unsuccessful download.
-		if [ $http_dl_stat -eq 0 ];then
-			dmcli eRT setv Device.DeviceInfo.X_RDKCENTRAL-COM_xOpsDeviceMgmt.RPC.FirmwareDownloadCompletedNotification bool true
-			echo_t "FirmwareDownloadCompletedNotification SET to true is triggered" >> $XCONF_LOG_FILE
-		else
-			dmcli eRT setv Device.DeviceInfo.X_RDKCENTRAL-COM_xOpsDeviceMgmt.RPC.FirmwareDownloadCompletedNotification bool false
-			echo_t "FirmwareDownloadCompletedNotification SET to false is triggered" >> $XCONF_LOG_FILE
-		fi
-
 
         else
 	    download_image_success=0
