@@ -316,8 +316,25 @@ INT HTTP_Download ()
                         }
 #endif
 #ifdef MODEM_ONLY_SUPPORT
-                        printf("\nXCONF BIN : HTTP download COMPLETED Setting Online LED to solid WHITE");
-                        v_secure_system("/usr/bin/SetLED 0 0 ");
+                        {
+                             LONG value = 0;
+                             int reboot_status; 
+                             int ret = RETURN_ERR;
+			     bool RFSignalStatus = false;
+                             
+			     ret = docsis_IsEnergyDetected(&RFSignalStatus);
+
+			     if ((ret == RETURN_OK) && (RFSignalStatus == true))
+                             {
+                                  reboot_status = cm_hal_Reboot_Ready(&value);
+
+                                  if(reboot_status == RETURN_OK && value == 1)
+                                  {
+                                      printf("\nXCONF BIN : HTTP image download and flashing COMPLETED Setting Online LED to solid WHITE");
+                                      v_secure_system("/usr/bin/SetLED 0 0 ");
+                                  }
+		            }		 
+                        }
 #endif
                     }
                     
