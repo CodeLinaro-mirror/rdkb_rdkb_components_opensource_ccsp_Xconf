@@ -395,9 +395,13 @@ useDirectRequest()
                 t2ValNotify "swdlCurlFail_split" "$ret" 
                 ;;
             esac
+
             [ "x$HTTP_RESPONSE_CODE" != "x" ] || HTTP_RESPONSE_CODE=0
-            if [ "0xret" != "0x0" ] && [ -f /lib/rdk/stateRedRecoveryUtils.sh ]; then
+            if [ "0x$ret" != "0x0" ] && [ -f /lib/rdk/stateRedRecoveryUtils.sh ]; then
                 checkAndEnterStateRed $ret
+            elif [ "x$HTTP_RESPONSE_CODE" == "x495" ] && [ -f /lib/rdk/stateRedRecoveryUtils.sh ]; then
+                ### HTTP 495 - Expired certificates NOT listed in servers allowlist
+                checkAndEnterStateRed $HTTP_RESPONSE_CODE
             fi
 }
 
@@ -432,8 +436,11 @@ useCodebigRequest()
                 t2ValNotify "swdlCBCurlFail_split" "$ret" 
                 ;;
             esac
-            if [ "0xret" != "0x0" ] && [ -f /lib/rdk/stateRedRecoveryUtils.sh ]; then
+            if [ "0x$ret" != "0x0" ] && [ -f /lib/rdk/stateRedRecoveryUtils.sh ]; then
                 checkAndEnterStateRed $ret
+            elif [ "x$HTTP_RESPONSE_CODE" == "x495" ] && [ -f /lib/rdk/stateRedRecoveryUtils.sh ]; then
+                ### HTTP 495 - Expired certificates NOT listed in servers allowlist
+                checkAndEnterStateRed $HTTP_RESPONSE_CODE
             fi
 }
 
