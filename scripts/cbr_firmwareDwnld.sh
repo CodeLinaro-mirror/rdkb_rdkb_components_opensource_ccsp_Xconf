@@ -359,6 +359,7 @@ useDirectRequest()
             echo_t "Trying Direct Communication"
             echo_t "Trying Direct Communication" >> $XCONF_LOG_FILE
             CURL_ARGS="--interface $interface $addr_type -w '%{http_code}\n' --tlsv1.2 -d \"$JSONSTR\" -o \"$FWDL_JSON\" \"$xconf_url\" $CERT_STATUS --connect-timeout 30 -m 30"
+	    FQDN=`echo "$xconf_url" | awk -F/ '{print $3}'`
 	    isInStateRed
             stateRed=$?
             if [ "0x$stateRed" == "0x1" ]; then
@@ -370,7 +371,7 @@ useDirectRequest()
                 echo_t "CURL_CMD:$CURL_CMD"
                 echo_t "CURL_CMD:$CURL_CMD" >> $XCONF_LOG_FILE
             else
-                ret=` exec_curl_mtls "$CURL_ARGS"`
+                ret=` exec_curl_mtls "$CURL_ARGS" "CDL" "$FQDN"`
             fi
             HTTP_RESPONSE_CODE=$(awk '{print $1}' $HTTP_CODE )
             echo_t "Direct Communication - ret:$ret, http_code:$HTTP_RESPONSE_CODE" | tee -a $XCONF_LOG_FILE ${LOG_PATH}/TlsVerify.txt
@@ -742,6 +743,8 @@ getFirmwareUpgDetail()
             echo_t "XCONF SCRIPT : Response code received is 404" >> $XCONF_LOG_FILE
                 
             if [ "$triggeredFrom" = "stateRedRecovery" ];then
+                tlsLog "unsetStateRed: XCONF SCRIPT Response code $HTTP_RESPONSE_CODE"
+                t2ValNotify "certerr_split" "State Red Recovery Status : $HTTP_RESPONSE_CODE"
                 unsetStateRed
                 exit
             fi
@@ -781,6 +784,8 @@ getFirmwareUpgDetail()
         fi
         echo_t "XCONF SCRIPT : Retry limit to connect with XCONF server reached, so exit" 
         if [ "$triggeredFrom" = "stateRedRecovery" ];then
+            tlsLog "unsetStateRed: XCONF SCRIPT Retry limit reached, Response code $HTTP_RESPONSE_CODE"
+            t2ValNotify "certerr_split" "State Red Recovery Status : $HTTP_RESPONSE_CODE"
             unsetStateRed
             exit
         fi
@@ -1399,6 +1404,8 @@ do
                 rm -rf $DOWNLOAD_INPROGRESS
                 if [ "$triggeredFrom" = "stateRedRecovery" ];then
                     stateRedlog "XCONF SCRIPT : stateRedRecovery - firmware download success"
+                    tlsLog "unsetStateRed: XCONF SCRIPT firmware download success with status $http_dl_stat"
+                    t2ValNotify "certerr_split" "State Red Recovery Status : $http_dl_stat"
                     unsetStateRed
                 fi
 
@@ -1413,6 +1420,8 @@ do
 		t2CountNotify "XCONF_Dwld_failed"
                 if [ "$triggeredFrom" = "stateRedRecovery" ];then
                     stateRedlog "XCONF SCRIPT : stateRedRecovery - firmware download failed"
+                    tlsLog "unsetStateRed: XCONF SCRIPT firmware download failed with status $http_dl_stat"
+                    t2ValNotify "certerr_split" "State Red Recovery Status : $http_dl_stat"
                     unsetStateRed
                 fi
                 rm -rf $DOWNLOAD_INPROGRESS
