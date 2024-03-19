@@ -57,7 +57,7 @@ fi
 
 PARTNER_ID="$(getPartnerId)"
 
-if [ -f /lib/rdk/mtlsUtils.sh ] && [ "$PARTNER_ID" = "sky-uk" ]
+if [ -f /lib/rdk/mtlsUtils.sh ] && [ "x$BOX_TYPE" = "xSR213" ]
 then
    source /lib/rdk/mtlsUtils.sh
    echo_t "XCONF: calling getMtlsCreds"
@@ -1465,8 +1465,8 @@ do
                   XconfHttpDl set_http_url " $cert $firmwareLocation/$firmwareFilename " "$firmwareFilename" complete_url
                   set_url_stat=$?
               fi
-          elif ([ "$BOX_TYPE" = "SR300" ] || [ "$BOX_TYPE" = "SR213" ]) && [ "$PARTNER_ID" = "sky-uk" ] && [ "$CERT" != "" ] && [[ "$firmwareLocation" == *"ssr.xdp.eu-1.xcal.tv"* ]]; then
-              #Use the MTLS certificates only for EU xconf "ssr.xdp.eu-1.xcal.tv"
+          elif ([ "$BOX_TYPE" = "SR300" ] || [ "$BOX_TYPE" = "SR213" ]) && [ "$CERT" != "" ]; then
+              #Use the MTLS certificates only for for HUB6 platforms"
               XconfHttpDl set_http_url "$firmwareLocation" "$firmwareFilename" "$CERT"
               set_url_stat=$?
               echo_t "XCONF SCRIPT : URL with certificate --- --tlsv1.2 -fgL $firmwareLocation and NAME --- $firmwareFilename"
