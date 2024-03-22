@@ -50,6 +50,11 @@ if [ "x$isRDKFWUpgraderEnabled" = "xtrue" ] ; then
 elif [ "$BOX" = "tccbr" ]; then
     DOWNLOAD_SCRIPT="/etc/cbr_firmwareDwnld.sh"
     SCRIPT_NAME="cbr_firmwareDwnld.sh"
+
+elif [ "$BOX" = "vntxer5" ]; then
+    DOWNLOAD_SCRIPT="/etc/xer5_firmwareDwnld.sh"
+    SCRIPT_NAME="xer5_firmwareDwnld.sh"
+
 else
     FIRMWARE_DOWNLOAD='_firmwareDwnld.sh'
     DOWNLOAD_SCRIPT="/etc/$BOX$FIRMWARE_DOWNLOAD"
