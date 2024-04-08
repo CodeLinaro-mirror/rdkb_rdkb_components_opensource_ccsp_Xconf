@@ -1353,12 +1353,11 @@ do
        done
     fi
 
-    if [ ! -f $DOWNLOAD_INPROGRESS ]
-    then
-        touch $DOWNLOAD_INPROGRESS
-    fi
-
     if [ $image_upg_avl -eq 1 ];then
+        if [ ! -f $DOWNLOAD_INPROGRESS ]
+        then
+            touch $DOWNLOAD_INPROGRESS
+        fi
        echo "$firmwareLocation" > /tmp/xconfdownloadurl
 
        if [ "$curr_conn_type" = "direct" ]; then

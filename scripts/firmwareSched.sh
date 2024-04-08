@@ -28,6 +28,7 @@ CRONTAB_FILE=$CRONTAB_DIR"root"
 FORMATTED_TMP_DCM_RESPONSE='/tmp/DCMSettings.conf'
 CRON_FILE_BK="/tmp/cron_tab$$.txt"
 REBOOT_WAIT="/tmp/.waitingreboot"
+DOWNLOAD_INPROGRESS="/tmp/.downloadingfw"
 XCONF_LOG_FILE_NAME=xconf.txt.0
 XCONF_LOG_FILE_PATHNAME=${LOG_PATH}/${XCONF_LOG_FILE_NAME}
 XCONF_LOG_FILE=${XCONF_LOG_FILE_PATHNAME}
@@ -96,7 +97,7 @@ updateCron()
 
 #Kill previous process to avoid multiple instances of script execution
 
-if [ ! -f $REBOOT_WAIT ]
+if [ ! -f $REBOOT_WAIT ] && [ ! -f $DOWNLOAD_INPROGRESS ]
 then
     killall $SCRIPT_NAME
 fi

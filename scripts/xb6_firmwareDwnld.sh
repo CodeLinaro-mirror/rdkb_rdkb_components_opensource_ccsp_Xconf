@@ -1399,13 +1399,12 @@ do
        done
     fi
 
-    if [ ! -f $DOWNLOAD_INPROGRESS ]
-    then
-        touch $DOWNLOAD_INPROGRESS
-    fi
-
     if [ $image_upg_avl -eq 1 ];then
 
+        if [ ! -f $DOWNLOAD_INPROGRESS ]
+        then
+            touch $DOWNLOAD_INPROGRESS
+        fi
         #Wait for dnsmasq to start
 #DNSMASQ_PID=`pidof dnsmasq`
 #
