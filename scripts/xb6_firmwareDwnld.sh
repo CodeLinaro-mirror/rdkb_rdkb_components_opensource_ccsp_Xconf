@@ -378,11 +378,11 @@ useDirectRequest()
             if [ "0x$stateRed" == "0x1" ]; then
                 stateRedlog "XCONF SCRIPT : stateRedRecovery - attempting MTLS connection to XCONF server"
                 CERT="$(getStateRedCreds)"
-                CURL_CMD="$CURL_PATH/curl $CERT $CURL_ARGS"
+                CURL_CMD="GetConfigFile /tmp/stateredxpki stdout | sed -e 's/^/--pass /' | $CURL_PATH/curl $CERT $CURL_ARGS"
                 result=` eval $CURL_CMD > $HTTP_CODE`
                 ret=$?
-                echo_t "CURL_CMD:$CURL_CMD"
-                echo_t "CURL_CMD:$CURL_CMD" >> $XCONF_LOG_FILE
+                echo_t "CURL_CMD:`echo "$CURL_CMD" | cut -d "|" -f3`"
+                echo_t "CURL_CMD:`echo "$CURL_CMD" | cut -d "|" -f3`" >> $XCONF_LOG_FILE
             else
                 ret=` exec_curl_mtls "$CURL_ARGS" "CDL" "$FQDN"`
             fi
@@ -1451,9 +1451,8 @@ do
 
                   if [ -f $ID ]; then
                       stateRedlog "Copying State Red Recovery certs to Arm side"
-                      scp -i $ID /tmp/stateredidx root@$PEER_INTERFACE_IP:/tmp/stateredidx
-                      scp -i $ID /etc/ssl/certs/statered.pem root@$PEER_INTERFACE_IP:/tmp/statered.pem
-                      cert="--cert /tmp/statered.pem --key /tmp/stateredidx"
+                      scp -i $ID /etc/ssl/certs/RedRecovery.p12 root@$PEER_INTERFACE_IP:/tmp/RedRecovery.p12
+		      cert="--cert-type P12 --cert /tmp/RedRecovery.p12"
                   else
                       stateRedlog "GetConfigFile failed"
                       exit 127

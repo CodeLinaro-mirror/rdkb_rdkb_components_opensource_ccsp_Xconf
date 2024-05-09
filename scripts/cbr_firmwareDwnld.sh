@@ -365,11 +365,11 @@ useDirectRequest()
             if [ "0x$stateRed" == "0x1" ]; then
                 stateRedlog "XCONF SCRIPT : stateRedRecovery - attempting MTLS connection to XCONF server"
                 CERT="$(getStateRedCreds)"
-                CURL_CMD="$CURL_PATH/curl $CERT $CURL_ARGS"
+                CURL_CMD="GetConfigFile /tmp/stateredxpki stdout | sed -e 's/^/--pass /' | $CURL_PATH/curl $CERT $CURL_ARGS"
                 result=` eval $CURL_CMD > $HTTP_CODE`
                 ret=$?
-                echo_t "CURL_CMD:$CURL_CMD"
-                echo_t "CURL_CMD:$CURL_CMD" >> $XCONF_LOG_FILE
+                echo_t "CURL_CMD:`echo "$CURL_CMD" | cut -d "|" -f3`"
+                echo_t "CURL_CMD:`echo "$CURL_CMD" | cut -d "|" -f3`" >> $XCONF_LOG_FILE
             else
                 ret=` exec_curl_mtls "$CURL_ARGS" "CDL" "$FQDN"`
             fi
