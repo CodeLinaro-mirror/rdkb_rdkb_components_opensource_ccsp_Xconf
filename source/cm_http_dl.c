@@ -315,7 +315,7 @@ INT HTTP_Download ()
                             sysevent_set(sysevent_led_fd, sysevent_led_token, SYSEVENT_LED_STATE, FW_UPDATE_COMPLETE_EVENT, 0);
                         }
 #endif
-#ifdef MODEM_ONLY_SUPPORT
+#if defined(MODEM_ONLY_SUPPORT) || defined(_XB10_PRODUCT_REQ_)
                         {
                              LONG value = 0;
                              int reboot_status; 
