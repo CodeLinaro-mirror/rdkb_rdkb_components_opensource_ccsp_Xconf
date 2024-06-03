@@ -65,6 +65,12 @@ CONN_TRIES=3
 EnableOCSPStapling="/tmp/.EnableOCSPStapling"
 EnableOCSP="/tmp/.EnableOCSPCA"
 
+#Rfc Agent files
+RFC_JSON="/nvram/rfc.json"
+PROCESSING_RFC="/tmp/.processingrfc"
+PENDING_RFC_REBOOT="/tmp/.pendingrfcreboot"
+APPLY_RFC="/tmp/applyRfc"
+
 if [ -f $EnableOCSPStapling ] || [ -f $EnableOCSP ]; then
     CERT_STATUS="--cert-status"
 fi
@@ -962,6 +968,31 @@ checkMaintenanceWindow()
     fi
 }
 
+# Check RFC processing and signal rfc agent to start processing
+checkrfcstatus()
+{
+    if [ -f "$RFC_JSON" ] && [ ! -f "$PROCESSING_RFC" ]; then
+      echo_t "XCONF SCRIPT : Processing RFC file"
+      echo_t "XCONF SCRIPT : Processing RFC file" >> $XCONF_LOG_FILE
+      touch $APPLY_RFC
+      sleep 30
+    fi
+    count=0
+    #Wait here till the RFC's are processed or 10 minutes
+    while [ -f "$PROCESSING_RFC" ] && [ $count -lt 60 ]; do
+        count=$((count + 1))
+        sleep 10
+        if [ $count -eq 60 ]; then
+            echo_t "XCONF SCRIPT : Timed out for RFC processing"
+            echo_t "XCONF SCRIPT : Timed out for RFC processing" >> $XCONF_LOG_FILE
+        fi
+        if [ ! -f "$PROCESSING_RFC" ]; then
+            echo_t "XCONF SCRIPT : RFC processing done"
+            echo_t "XCONF SCRIPT : RFC processing done" >> $XCONF_LOG_FILE
+        fi
+    done
+}
+
 #####################################################Main Application#####################################################
 
 # Determine the env type and url and write to /tmp/Xconf
@@ -1292,6 +1323,8 @@ while [ $reboot_device_success -eq 0 ]; do
             calcRandTime 0 1 r
         fi    
 
+        checkrfcstatus
+
         # Check the Reboot status
         # Continously check reboot status every 10 seconds  
         # till the end of the maintenace window until the reboot status is OK
@@ -1316,6 +1349,7 @@ while [ $reboot_device_success -eq 0 ]; do
         done 
 
     else
+        checkrfcstatus
         #RebootImmediately is TRUE
         echo_t "XCONF SCRIPT : Reboot Immediately : TRUE!, rebooting device now"
         http_reboot_ready_stat=0    
@@ -1350,7 +1384,11 @@ while [ $reboot_device_success -eq 0 ]; do
 	    echo_t "XCONF SCRIPT : Reboot possible. Issuing reboot command"
 	    echo_t "RDKB_REBOOT : Reboot command issued from XCONF"
 		echo_t "setting LastRebootReason"
-		dmcli eRT setv Device.DeviceInfo.X_RDKCENTRAL-COM_LastRebootReason string Software_upgrade
+        if [ -f "$PENDING_RFC_REBOOT" ]; then
+            dmcli eRT setv Device.DeviceInfo.X_RDKCENTRAL-COM_LastRebootReason string Software_upgrade_and_RFC
+        else
+            dmcli eRT setv Device.DeviceInfo.X_RDKCENTRAL-COM_LastRebootReason string Software_upgrade
+        fi
 		echo_t "XCONF SCRIPT : SET succeeded"
 		$BIN_PATH/XconfHttpDl http_reboot 
 		reboot_device=$?
