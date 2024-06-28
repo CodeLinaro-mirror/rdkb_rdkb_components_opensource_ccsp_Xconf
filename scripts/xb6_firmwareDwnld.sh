@@ -55,14 +55,24 @@ then
    source /lib/rdk/exec_curl_mtls.sh
 fi
 
-PARTNER_ID="$(getPartnerId)"
-
-if [ -f /lib/rdk/mtlsUtils.sh ] && [ "x$BOX_TYPE" = "xSR213" ]
+if [ -f /lib/rdk/mtlsUtils.sh ]
 then
    source /lib/rdk/mtlsUtils.sh
-   echo_t "XCONF: calling getMtlsCreds"
-   CERT="`getMtlsCreds ${BOX_TYPE}_firmwareDwnld.sh`"
 fi
+PARTNER_ID="$(getPartnerId)"
+
+if [ -f /lib/rdk/mtlsUtils.sh ]; then
+    if [ "x$BOX_TYPE" = "xHUB4" ]; then
+        echo_t "XCONF: mTLS is not supported on HUB4"
+    elif [ "x$BOX_TYPE" = "xSR213" ]; then
+        echo_t "XCONF: calling getMtlsCreds"
+        CERT="`getMtlsCreds ${BOX_TYPE}_firmwareDwnld.sh`"
+    else
+        echo_t "XCONF: calling getMtlsCreds"
+        CERT="$(getMtlsCreds ${BOX_TYPE}_firmwareDwnld.sh | sed 's/:.*//') --config /dev/stdin"
+    fi
+fi
+
 
 source /lib/rdk/t2Shared_api.sh
 source /etc/waninfo.sh
@@ -1474,21 +1484,8 @@ do
           if [ "$triggeredFrom" = "stateRedRecovery" ];then
               stateRedlog "XCONF SCRIPT : stateRedRecovery - setting mtls state red credentials"
               cert="$(getStateRedCreds)"
-              if [ "$BOX_TYPE" = "XB6" -a "$MANUFACTURE" = "Arris" ] ;
-              then
-                  ID="/tmp/elxrretyt-fwdl.swr"
-                  if [ ! -f $ID ]; then
-                      GetConfigFile $ID
-                  fi
-
-                  if [ -f $ID ]; then
-                      stateRedlog "Copying State Red Recovery certs to Arm side"
-                      scp -i $ID /etc/ssl/certs/RedRecovery.p12 root@$PEER_INTERFACE_IP:/tmp/RedRecovery.p12
-		      cert="--cert-type P12 --cert /tmp/RedRecovery.p12"
-                  else
-                      stateRedlog "GetConfigFile failed"
-                      exit 127
-                  fi
+              if [ "$BOX_TYPE" = "XB6" -a "$MANUFACTURE" = "Arris" ]; then
+                  cert="--cert-type P12 --cert /etc/ssl/certs/RedRecovery.p12"
               fi
               if [ "$direct_CDN" = "true" ] && [ $CDL_SERVER_OVERRIDE != 1 ] && [ "x$CodeBigEnable" != "xtrue" ];then
                   echo_t "XCONF SCRIPT stateRedRecovery : $firmware_URL/$firmwareFilename" >> $XCONF_LOG_FILE
@@ -1502,18 +1499,26 @@ do
                   XconfHttpDl set_http_url " $cert $firmwareLocation/$firmwareFilename " "$firmwareFilename" complete_url
                   set_url_stat=$?
               fi
-          elif ([ "$BOX_TYPE" = "SR300" ] || [ "$BOX_TYPE" = "SR213" ]) && [ "$CERT" != "" ]; then
-              #Use the MTLS certificates only for for HUB6 platforms"
-              XconfHttpDl set_http_url "$firmwareLocation" "$firmwareFilename" "$CERT"
-              set_url_stat=$?
-              echo_t "XCONF SCRIPT : URL with certificate --- --tlsv1.2 -fgL $firmwareLocation and NAME --- $firmwareFilename"
-              echo_t "XCONF SCRIPT : URL with certificate --- --tlsv1.2 -fgL $firmwareLocation and NAME --- $firmwareFilename" >> $XCONF_LOG_FILE
-	  elif [ "$direct_CDN" = "true" ] && [ $CDL_SERVER_OVERRIDE != 1 ];then
+          elif [ "$direct_CDN" = "true" ] && [ $CDL_SERVER_OVERRIDE != 1 ];then
               echo_t "XCONF SCRIPT : URL --- --tlsv1.2 -fgL $firmware_URL and NAME --- $firmwareFilename"
               echo_t "XCONF SCRIPT : URL --- --tlsv1.2 -fgL $firmware_URL and NAME --- $firmwareFilename" >> $XCONF_LOG_FILE
 
               XconfHttpDl set_http_url "$firmware_URL" "$firmwareFilename"
               set_url_stat=$?
+          elif [ "$CERT" != "" ]; then
+              #Handle the MTLS from Arm side of XB6
+              if [ "$BOX_TYPE" = "XB6" -a "$MANUFACTURE" = "Arris" ]; then
+                  CERT=$(echo "$CERT" | sed 's/--config \/dev\/stdin//g')
+              fi
+              #Use the MTLS certificates for all platforms"
+              if [ "$BOX_TYPE" = "SR300" ] || [ "$BOX_TYPE" = "SR213" ]; then
+                  XconfHttpDl set_http_url "$firmwareLocation" "$firmwareFilename" "$CERT"
+              else
+                  XconfHttpDl set_http_url " $CERT $firmwareLocation/$firmwareFilename " "$firmwareFilename" complete_url
+              fi
+              set_url_stat=$?
+              echo_t "XCONF SCRIPT : URL with certificate --- --tlsv1.2 -fgL $firmwareLocation and NAME --- $firmwareFilename"
+              echo_t "XCONF SCRIPT : URL with certificate --- --tlsv1.2 -fgL $firmwareLocation and NAME --- $firmwareFilename" >> $XCONF_LOG_FILE
           else
               echo_t "XCONF SCRIPT : URL --- --tlsv1.2 -fgL $firmwareLocation and NAME --- $firmwareFilename"
               echo_t "XCONF SCRIPT : URL --- --tlsv1.2 -fgL $firmwareLocation and NAME --- $firmwareFilename" >> $XCONF_LOG_FILE

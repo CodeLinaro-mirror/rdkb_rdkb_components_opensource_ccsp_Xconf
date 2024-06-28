@@ -50,6 +50,12 @@ XCONF_LOG_FILE_PATHNAME=${LOG_PATH}/${XCONF_LOG_FILE_NAME}
 XCONF_LOG_FILE=${XCONF_LOG_FILE_PATHNAME}
 
 CERT=""
+if [ -f /lib/rdk/mtlsUtils.sh ]
+then
+   source /lib/rdk/mtlsUtils.sh
+   echo_t "XCONF: calling getMtlsCreds"
+   CERT="$(getMtlsCreds ${BOX_TYPE}_firmwareDwnld.sh | sed 's/:.*//') --config /dev/stdin"
+fi
 
 if [ -f /lib/rdk/exec_curl_mtls.sh ]
 then
@@ -1350,19 +1356,6 @@ do
 
        if [ "$curr_conn_type" = "direct" ]; then
           # Set the url and filename
-          if [ "$direct_CDN" = "true" ] && [ $CDL_SERVER_OVERRIDE != 1 ];then
-              echo_t "XCONF SCRIPT : URL --- --tlsv1.2 -fgL $firmware_URL and NAME --- $firmwareFilename"
-              echo_t "XCONF SCRIPT : URL --- --tlsv1.2 -fgL $firmware_URL and NAME --- $firmwareFilename" >> $XCONF_LOG_FILE
-
-              XconfHttpDl set_http_url "$firmware_URL" "$firmwareFilename"
-              set_url_stat=$?
-          else
-              echo_t "XCONF SCRIPT : URL --- --tlsv1.2 -fgL $firmwareLocation and NAME --- $firmwareFilename"
-              echo_t "XCONF SCRIPT : URL --- --tlsv1.2 -fgL $firmwareLocation and NAME --- $firmwareFilename" >> $XCONF_LOG_FILE
-
-              XconfHttpDl set_http_url "$firmwareLocation" "$firmwareFilename"
-              set_url_stat=$?
-          fi
           if [ "$triggeredFrom" = "stateRedRecovery" ];then
              stateRedlog "XCONF SCRIPT : stateRedRecovery - setting mtls state red credentials"
              if [ "$direct_CDN" = "true" ] && [ $CDL_SERVER_OVERRIDE != 1 ] && [ "x$CodeBigEnable" != "xtrue" ];then
@@ -1375,6 +1368,24 @@ do
                  $BIN_PATH/XconfHttpDl set_http_url " $cert $firmwareLocation/$firmwareFilename " "$firmwareFilename" complete_url
                  set_url_stat=$?
              fi
+          elif [ "$direct_CDN" = "true" ] && [ $CDL_SERVER_OVERRIDE != 1 ];then
+              echo_t "XCONF SCRIPT : URL --- --tlsv1.2 -fgL $firmware_URL and NAME --- $firmwareFilename"
+              echo_t "XCONF SCRIPT : URL --- --tlsv1.2 -fgL $firmware_URL and NAME --- $firmwareFilename" >> $XCONF_LOG_FILE
+
+              XconfHttpDl set_http_url "$firmware_URL" "$firmwareFilename"
+              set_url_stat=$?
+          elif [ "$CERT" != "" ]; then
+              #Use the MTLS certificates for all platforms"
+              XconfHttpDl set_http_url " $CERT $firmwareLocation/$firmwareFilename " "$firmwareFilename" complete_url
+              set_url_stat=$?
+              echo_t "XCONF SCRIPT : URL with certificate --- --tlsv1.2 -fgL $firmwareLocation and NAME --- $firmwareFilename"
+              echo_t "XCONF SCRIPT : URL with certificate --- --tlsv1.2 -fgL $firmwareLocation and NAME --- $firmwareFilename" >> $XCONF_LOG_FILE
+          else
+              echo_t "XCONF SCRIPT : URL --- --tlsv1.2 -fgL $firmwareLocation and NAME --- $firmwareFilename"
+              echo_t "XCONF SCRIPT : URL --- --tlsv1.2 -fgL $firmwareLocation and NAME --- $firmwareFilename" >> $XCONF_LOG_FILE
+
+              XconfHttpDl set_http_url "$firmwareLocation" "$firmwareFilename"
+              set_url_stat=$?
           fi
        else
           # Set the url and filename
