@@ -47,6 +47,11 @@
 #define FW_UPDATE_COMPLETE_EVENT "rdkb_fwupdate_complete"
 int sysevent_led_fd = -1;
 token_t sysevent_led_token;
+#ifdef FEATURE_RDKB_LED_MANAGER_CAPTIVE_PORTAL
+#define HTTP_LED_FLASH_DISABLE_FLAG "/tmp/.dwd_led_blink_disable"
+#define FW_DOWNLOAD_STOP "rdkb_fwdownload_stop"
+#define FW_DOWNLOAD_STOP_CAPTIVEMODE "rdkb_fwdownload_stop_captivemode"
+#endif
 #endif
 
 enum ArgumentType_Xconf_e {
@@ -229,6 +234,14 @@ INT HTTP_Download ()
     int retry_http_status=1;
     int retry_http_dl=1;
     FILE *log_wget = NULL;
+#if defined (FEATURE_RDKB_LED_MANAGER_CAPTIVE_PORTAL)
+    char redirFlag[10]={0};
+    char captivePortalEnable[10]={0};
+    bool led_disable = false;
+    FILE *fp = fopen(HTTP_LED_FLASH_DISABLE_FLAG, "r");
+    if(fp != NULL)
+            led_disable = true;
+#endif 
 
     /* interface=0 for wan0, interface=1 for erouter0 */
     unsigned int interface=1;
@@ -245,11 +258,20 @@ INT HTTP_Download ()
 #endif
     while((retry_limit < RETRY_HTTP_DOWNLOAD_LIMIT) && (retry_http_dl==1))
     {
-#ifdef FEATURE_RDKB_LED_MANAGER
+#if defined (FEATURE_RDKB_LED_MANAGER)
+#if defined (FEATURE_RDKB_LED_MANAGER_CAPTIVE_PORTAL)
+	    if (!led_disable) {
+		    printf("Led Flashing Not Disabled \n");
+		    if (sysevent_led_fd != -1) {
+			    sysevent_set(sysevent_led_fd, sysevent_led_token, SYSEVENT_LED_STATE, FW_DOWNLOAD_START_EVENT, 0);
+		    }
+	    }
+#else
             if(sysevent_led_fd != -1)
             {
                 sysevent_set(sysevent_led_fd, sysevent_led_token, SYSEVENT_LED_STATE, FW_DOWNLOAD_START_EVENT, 0);
             }
+#endif
 #endif
 #ifdef FEATURE_FWUPGRADE_MANAGER
             ret_stat = fwupgrade_hal_download ();
@@ -309,11 +331,29 @@ INT HTTP_Download ()
 
                         //printf("\nBIN : retry_http_status : %d",retry_http_status);
                         //printf("\nBIN : retry_dl_status : %d",retry_http_dl);
-#ifdef FEATURE_RDKB_LED_MANAGER
-                        if(sysevent_led_fd != -1)
-                        {
-                            sysevent_set(sysevent_led_fd, sysevent_led_token, SYSEVENT_LED_STATE, FW_UPDATE_COMPLETE_EVENT, 0);
-                        }
+#if defined (FEATURE_RDKB_LED_MANAGER)
+#if defined (FEATURE_RDKB_LED_MANAGER_CAPTIVE_PORTAL)
+            if (!led_disable) {
+            printf("Led Flashing Not Disabled \n");
+            if (!syscfg_get(NULL, "redirection_flag", redirFlag, sizeof(redirFlag)) &&
+               !syscfg_get(NULL, "CaptivePortal_Enable", captivePortalEnable, sizeof(captivePortalEnable))) {
+              if (!strncmp(redirFlag, "true", 4) && !strncmp(captivePortalEnable, "true", 4)) {
+                  if (sysevent_led_fd != -1) {
+                      sysevent_set(sysevent_led_fd, sysevent_led_token, SYSEVENT_LED_STATE, FW_DOWNLOAD_STOP_CAPTIVEMODE, 0);
+                  }
+              } else {
+                  if (sysevent_led_fd != -1) {
+                      sysevent_set(sysevent_led_fd, sysevent_led_token, SYSEVENT_LED_STATE, FW_DOWNLOAD_STOP, 0);
+                  }
+              }
+            }
+            } 
+#else
+	    if(sysevent_led_fd != -1)
+	    {
+		    sysevent_set(sysevent_led_fd, sysevent_led_token, SYSEVENT_LED_STATE, FW_UPDATE_COMPLETE_EVENT, 0);
+	    }
+#endif
 #endif
 #if defined(MODEM_ONLY_SUPPORT) || defined(_XB10_PRODUCT_REQ_)
                         {
@@ -403,12 +443,30 @@ INT HTTP_Download ()
      */
     if ((http_dl_status > 400) || (http_dl_status == -1))
     {
-#ifdef FEATURE_RDKB_LED_MANAGER
+#if defined (FEATURE_RDKB_LED_MANAGER)
             /* Either image download or flashing failed. set previous state */
+#if defined (FEATURE_RDKB_LED_MANAGER_CAPTIVE_PORTAL)
+            if (!led_disable) {
+            printf("Led Flashing Not Disabled \n");
+            if (!syscfg_get(NULL, "redirection_flag", redirFlag, sizeof(redirFlag)) &&
+               !syscfg_get(NULL, "CaptivePortal_Enable", captivePortalEnable, sizeof(captivePortalEnable))) {
+              if (!strncmp(redirFlag, "true", 4) && !strncmp(captivePortalEnable, "true", 4)) {
+                  if (sysevent_led_fd != -1) {
+                      sysevent_set(sysevent_led_fd, sysevent_led_token, SYSEVENT_LED_STATE, FW_DOWNLOAD_STOP_CAPTIVEMODE, 0);
+                  }
+              } else {
+                  if (sysevent_led_fd != -1) {
+                      sysevent_set(sysevent_led_fd, sysevent_led_token, SYSEVENT_LED_STATE, FW_DOWNLOAD_STOP, 0);
+                  }
+              }
+            }
+            } 
+#else
             if(sysevent_led_fd != -1)
             {
                 sysevent_set(sysevent_led_fd, sysevent_led_token, SYSEVENT_LED_STATE, FW_UPDATE_STOP_EVENT, 0);
             }
+#endif
 #endif
 	    printf("\nXCONF BIN : HTTP DOWNLOAD ERROR with status : %d. Exiting.",http_dl_status);
             //check and enter state red if curl code matches. if already in state red do nothing.
@@ -425,6 +483,10 @@ INT HTTP_Download ()
     }
 
 #ifdef FEATURE_RDKB_LED_MANAGER
+#if defined (FEATURE_RDKB_LED_MANAGER_CAPTIVE_PORTAL)
+    if (led_disable == true)
+	    fclose(fp);
+#endif
     if (0 <= sysevent_led_fd)
     {
         sysevent_close(sysevent_led_fd, sysevent_led_token);
